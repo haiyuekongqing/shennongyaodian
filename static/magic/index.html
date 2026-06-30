@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵境 · 神农本草</title>
+<style>
+/* ═══════════════════════════════════════════════
+   灵境问药 — 线装古籍悬浮版
+   翻书动画：CSS 3D 纸页翻折模拟
+   零外部依赖
+   ═══════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+    --night: #000000;
+    --gold: #d4a84b;
+    --gold-glow: #f0d68a;
+    --jade: #5b8c6f;
+    --ink: #2c1810;
+    --ink-light: #5a3a2a;
+    --parchment: #f5f0e8;
+    --parchment-dark: #e8dfd0;
+    --parchment-shadow: #d4c9b8;
+    --cover-blue: #1a2a4a;
+    --cover-dark: #0f1a30;
+    --cover-border: #c9a94e;
+    --binding-thread: #8a6a3a;
+    --page-shadow: rgba(0,0,0,0.15);
+    --font-serif: 'Noto Serif SC', 'STSong', 'SimSun', 'Songti SC', serif;
+    --font-title: 'Noto Serif SC', 'KaiTi', 'STKaiti', serif;
+}
+
+html, body {
+    height: 100%;
+    overflow: hidden;
+    font-family: var(--font-serif);
+    background: var(--night);
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ═══ 星空（黑色背景 + 明亮繁星） ═══ */
+.stars {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.star {
+    position: absolute;
+    border-radius: 50%;
+    background: white;
+    animation: starTwinkle var(--d) ease-in-out infinite alternate;
+}
+
+.star.main {
+    box-shadow: 0 0 var(--glow) rgba(255,255,255,0.6);
+}
+
+@keyframes starTwinkle {
+    0% { opacity: 0.15; transform: scale(0.9); }
+    100% { opacity: 1; transform: scale(1.1); }
+}
+
+/* 银河带 */
+.milky-way {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background:
+        radial-gradient(ellipse at 70% 30%, rgba(255,255,255,0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 30% 70%, rgba(200,180,255,0.02) 0%, transparent 40%);
+}
+
+/* 大字云纹 */
+.cloud-text {
+    position: fixed;
+    pointer-events: none;
+    z-index: 0;
+    font-family: var(--font-title);
+    font-size: 180px;
+    color: rgba(255,255,255,0.015);
+    white-space: nowrap;
+    letter-spacing: 40px;
+    transform: rotate(-15deg);
+}
+
+/* ═══ 漂浮书籍 ═══ */
+.scene {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    perspective: 2000px;
+}
+
+/* 悬浮动画 */
+@keyframes floatBook {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+}
+
+.book-outer {
+    position: relative;
+    width: 820px;
+    height: 520px;
+    animation: floatBook 5s ease-in-out infinite;
+}
+
+/* 书籍阴影 */
+.book-outer::after {
+    content: '';
+    position: absolute;
+    bottom: -40px;
+    left: 5%;
+    width: 90%;
+    height: 30px;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.08) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: shadowPulse 5s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes shadowPulse {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 0.1; transform: scale(0.8); }
+}
+
+/* ═══ 书籍本体 ═══ */
+.book {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    cursor: pointer;
+}
+
+/* ── 书脊 ── */
+.book-spine {
+    position: absolute;
+    left: -24px;
+    top: 0;
+    width: 24px;
+    height: 100%;
+    background: linear-gradient(to right, var(--cover-dark), var(--cover-blue) 40%, var(--cover-dark));
+    border-radius: 4px 0 0 4px;
+    transform-origin: right center;
+    box-shadow:
+        inset -2px 0 4px rgba(0,0,0,0.4),
+        2px 0 6px rgba(0,0,0,0.2);
+    z-index: 3;
+}
+
+/* 书脊上的线装针孔 */
+.book-spine::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 80%;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 35px,
+        var(--binding-thread) 35px,
+        var(--binding-thread) 37px,
+        transparent 37px,
+        transparent 72px
+    );
+    opacity: 0.3;
+}
+
+/* ── 书籍主体（含书口厚度） ── */
+.book-body {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    margin-left: 0px;
+}
+
+/* 书口厚度 */
+.book-body::after {
+    content: '';
+    position: absolute;
+    right: -10px;
+    top: 4px;
+    width: 10px;
+    height: calc(100% - 8px);
+    background: linear-gradient(to right, var(--parchment-dark), #c4b8a4);
+    border-radius: 0 2px 2px 0;
+    transform-origin: left center;
+    box-shadow: inset 1px 0 3px rgba(0,0,0,0.1);
+}
+
+/* 书页顶部页边 */
+.book-body .page-top-edge {
+    position: absolute;
+    top: -4px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(to bottom, transparent, var(--parchment));
+    z-index: 1;
+}
+
+/* ═══ 封面 ═══ */
+.book-cover {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    transform-origin: left center;
+    transition: transform 1.4s cubic-bezier(0.4, 0.2, 0.2, 1);
+    z-index: 5;
+    background: linear-gradient(135deg, var(--cover-dark) 0%, var(--cover-blue) 60%, #1e3050 100%);
+    border: 2px solid var(--cover-border);
+    border-radius: 0 4px 4px 0;
+    box-shadow:
+        3px 4px 25px rgba(0,0,0,0.5),
+        inset 0 0 80px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* 封面四角包角 */
+.book-cover .corner-tl,
+.book-cover .corner-tr,
+.book-cover .corner-bl,
+.book-cover .corner-br {
+    position: absolute;
+    width: 36px; height: 36px;
+    border-color: var(--cover-border);
+    border-style: solid;
+    opacity: 0.5;
+}
+.book-cover .corner-tl { top: 8px; left: 8px; border-width: 2px 0 0 2px; }
+.book-cover .corner-tr { top: 8px; right: 8px; border-width: 2px 2px 0 0; }
+.book-cover .corner-bl { bottom: 8px; left: 8px; border-width: 0 0 2px 2px; }
+.book-cover .corner-br { bottom: 8px; right: 8px; border-width: 0 2px 2px 0; }
+
+/* 封面内侧（翻开时可见的反面） */
+.book-cover-inner {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    transform: rotateY(180deg);
+    background: var(--parchment);
+    background-image: linear-gradient(135deg, rgba(0,0,0,0.02), transparent);
+    border-radius: 0 4px 4px 0;
+}
+
+/* 翻页阴影 */
+.book-cover .flip-shadow {
+    position: absolute;
+    top: 0; right: 0; bottom: 0; left: 0;
+    background: linear-gradient(to right, transparent 60%, rgba(0,0,0,0.15) 100%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.book.open .book-cover .flip-shadow {
+    opacity: 1;
+}
+
+/* 翻开时封面动画 */
+.book.open .book-cover {
+    transform: rotateY(-178deg);
+    cursor: default;
+    transition-duration: 1.6s;
+}
+
+/* 封面内容 */
+.cover-face {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 20px;
+}
+
+/* 竖排标题区域 */
+.cover-title-area {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+.cover-char {
+    font-family: var(--font-title);
+    font-size: 64px;
+    color: var(--gold);
+    text-shadow:
+        0 0 20px rgba(212,168,75,0.3),
+        0 0 60px rgba(212,168,75,0.1);
+    writing-mode: vertical-rl;
+    letter-spacing: 8px;
+    line-height: 1.4;
+}
+
+.cover-char.small {
+    font-size: 28px;
+    color: var(--gold-glow);
+    opacity: 0.7;
+}
+
+/* 副标题 */
+.cover-sub {
+    color: var(--gold);
+    opacity: 0.6;
+    font-size: 16px;
+    letter-spacing: 8px;
+    margin-bottom: 10px;
+}
+
+/* 点击提示 */
+.cover-hint {
+    color: var(--gold);
+    opacity: 0.4;
+    font-size: 13px;
+    animation: hintPulse 2s ease-in-out infinite;
+    letter-spacing: 4px;
+}
+
+@keyframes hintPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.7; }
+}
+
+/* 线装订线装饰（封面上的四个点） */
+.binding-dots {
+    position: absolute;
+    left: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 35px;
+}
+
+.binding-dots span {
+    width: 8px;
+    height: 8px;
+    background: var(--binding-thread);
+    border-radius: 50%;
+    opacity: 0.4;
+    box-shadow: 0 0 4px rgba(138,106,58,0.3);
+}
+
+/* 印章装饰 */
+.seal {
+    position: absolute;
+    bottom: 40px;
+    right: 30px;
+    width: 50px;
+    height: 50px;
+    border: 2px solid var(--cinnabar, #8b2500);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cinnabar, #8b2500);
+    font-size: 18px;
+    opacity: 0.5;
+    transform: rotate(-5deg);
+    font-family: var(--font-title);
+}
+
+/* ═══ 翻开后内容 ═══ */
+.book-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    background: var(--parchment);
+    background-image:
+        linear-gradient(135deg, rgba(255,255,255,0.3) 0%, transparent 50%),
+        linear-gradient(90deg, transparent 98%, var(--parchment-shadow) 100%);
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.03);
+    border-radius: 0 4px 4px 0;
+    overflow: hidden;
+    z-index: 1;
+}
+
+/* 页面底部页边卷曲效果 */
+.book-content::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    height: 30px;
+    background: radial-gradient(circle at 100% 100%, transparent 15px, var(--parchment-dark) 16px);
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+/* 中间书缝 */
+.book-gutter {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background: linear-gradient(to bottom, transparent 3%, var(--parchment-shadow) 10%, var(--parchment-shadow) 90%, transparent 97%);
+    z-index: 2;
+}
+
+.book-gutter::before,
+.book-gutter::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 1px;
+}
+.book-gutter::before { left: -5px; background: linear-gradient(to bottom, transparent 10%, rgba(0,0,0,0.04) 20%, rgba(0,0,0,0.04) 80%, transparent 90%); }
+.book-gutter::after { right: -5px; background: linear-gradient(to bottom, transparent 10%, rgba(0,0,0,0.04) 20%, rgba(0,0,0,0.04) 80%, transparent 90%); }
+
+/* ═══ 左页 ═══ */
+.page-left {
+    flex: 1;
+    padding: 40px 30px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    border-right: 1px solid var(--parchment-shadow);
+}
+
+.page-left::after {
+    content: '';
+    position: absolute;
+    right: 10px;
+    top: 30px;
+    bottom: 30px;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, rgba(0,0,0,0.06) 20%, rgba(0,0,0,0.06) 80%, transparent);
+}
+
+.left-ornament {
+    font-size: 14px;
+    color: var(--ink-light);
+    opacity: 0.3;
+    letter-spacing: 6px;
+    margin-bottom: 20px;
+}
+
+.left-quote {
+    font-size: 16px;
+    color: var(--ink-light);
+    line-height: 2.2;
+    text-align: center;
+    max-width: 85%;
+}
+
+.left-quote .highlight {
+    color: var(--ink);
+    font-weight: 700;
+}
+
+.left-source {
+    margin-top: 20px;
+    font-size: 13px;
+    color: var(--ink-light);
+    opacity: 0.5;
+    letter-spacing: 2px;
+}
+
+.left-seal {
+    margin-top: 24px;
+    width: 44px;
+    height: 44px;
+    border: 2px solid rgba(139,37,0,0.3);
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(139,37,0,0.3);
+    font-size: 16px;
+    transform: rotate(-3deg);
+    font-family: var(--font-title);
+}
+
+/* ═══ 右页（聊天区） ═══ */
+.page-right {
+    flex: 1.5;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.chat-header {
+    font-family: var(--font-title);
+    font-size: 20px;
+    color: var(--ink);
+    text-align: center;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--gold);
+    letter-spacing: 8px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.chat-header::before,
+.chat-header::after {
+    content: '✦';
+    font-size: 12px;
+    color: var(--gold);
+    opacity: 0.5;
+    margin: 0 10px;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding-right: 4px;
+    min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--parchment-shadow) transparent;
+}
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--parchment-shadow); border-radius: 2px; }
+
+.chat-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--ink-light);
+    opacity: 0.5;
+    gap: 6px;
+}
+.chat-welcome .icon { font-size: 40px; }
+.chat-welcome .text { font-size: 14px; }
+.chat-welcome .hint { font-size: 12px; opacity: 0.6; }
+
+.chat-bubble {
+    max-width: 88%;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+}
+
+.chat-bubble.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--ink), var(--ink-light));
+    color: white;
+    border-bottom-right-radius: 2px;
+}
+
+.chat-bubble.ai {
+    align-self: flex-start;
+    background: white;
+    color: var(--ink);
+    border: 1px solid var(--parchment-shadow);
+    border-bottom-left-radius: 2px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+
+.chat-bubble.ai .disc {
+    display: block;
+    font-size: 10px;
+    color: var(--ink-light);
+    opacity: 0.5;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(0,0,0,0.05);
+    font-style: italic;
+}
+
+.chat-bubble .typing {
+    display: inline-flex;
+    gap: 3px;
+}
+.chat-bubble .typing span {
+    width: 6px; height: 6px;
+    background: var(--ink-light);
+    border-radius: 50%;
+    animation: dotBounce 1.4s infinite;
+    opacity: 0.3;
+}
+.chat-bubble .typing span:nth-child(2) { animation-delay: 0.2s; }
+.chat-bubble .typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes dotBounce { 40% { opacity: 1; } }
+
+.chat-input-row {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--parchment-shadow);
+    padding-top: 10px;
+}
+
+.chat-input-row input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--parchment-shadow);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: var(--font-serif);
+    background: white;
+    color: var(--ink);
+    outline: none;
+}
+.chat-input-row input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(212,168,75,0.1);
+}
+
+.chat-input-row button {
+    padding: 8px 18px;
+    background: var(--ink);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: var(--font-title);
+    transition: opacity 0.2s;
+    letter-spacing: 4px;
+}
+.chat-input-row button:hover { opacity: 0.85; }
+.chat-input-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ═══ 返回链接 ═══ */
+.back-link {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    color: rgba(255,255,255,0.2);
+    text-decoration: none;
+    font-size: 13px;
+    z-index: 10;
+    transition: color 0.3s;
+    letter-spacing: 2px;
+}
+.back-link:hover { color: var(--gold); }
+
+/* ═══ 响应式 ═══ */
+@media (max-width: 860px) {
+    .book-outer { width: 94vw; height: 65vw; }
+    .cover-char { font-size: 40px; }
+    .cover-char.small { font-size: 20px; }
+    .page-left { display: none; }
+    .page-right { flex: 1; border-left: none; }
+    .book-gutter { display: none; }
+    .book-spine { display: none; }
+    .book-body::after { display: none; }
+    .back-link { font-size: 11px; top: 10px; left: 10px; }
+}
+
+@media (max-width: 480px) {
+    .book-outer { height: 80vw; }
+    .cover-char { font-size: 28px; letter-spacing: 4px; }
+    .cover-sub { font-size: 12px; }
+    .page-right { padding: 14px 10px; }
+    .chat-header { font-size: 16px; letter-spacing: 4px; }
+    .chat-bubble { font-size: 12px; padding: 8px 10px; }
+}
+
+.fade-in { animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<!-- 银河 -->
+<div class="milky-way"></div>
+
+<!-- 星空 -->
+<div class="stars" id="stars"></div>
+
+<!-- 云纹底字 -->
+<div class="cloud-text" style="top:5%;left:-5%;">本 草 灵 境</div>
+<div class="cloud-text" style="bottom:5%;right:-5%;font-size:120px;transform:rotate(10deg);">药 典 神 农</div>
+
+<!-- 返回链接 -->
+<a class="back-link" href="/">← 返回药典</a>
+
+<!-- ═══ 场景 ═══ -->
+<div class="scene">
+    <div class="book-outer" id="bookOuter">
+        <!-- 书脊 -->
+        <div class="book-spine"></div>
+
+        <div class="book-body">
+            <div class="page-top-edge"></div>
+
+            <div class="book" id="book">
+
+                <!-- ═══ 封面 ═══ -->
+                <div class="book-cover" id="bookCover" onclick="openBook()">
+                    <!-- 包角 -->
+                    <div class="corner-tl"></div>
+                    <div class="corner-tr"></div>
+                    <div class="corner-bl"></div>
+                    <div class="corner-br"></div>
+                    <!-- 装订线 -->
+                    <div class="binding-dots">
+                        <span></span><span></span><span></span><span></span>
+                    </div>
+                    <!-- 翻页阴影 -->
+                    <div class="flip-shadow"></div>
+                    <!-- 封面内容 -->
+                    <div class="cover-face">
+                        <div class="cover-title-area">
+                            <span class="cover-char small">灵</span>
+                            <span class="cover-char">神</span>
+                            <span class="cover-char">农</span>
+                            <span class="cover-char">本</span>
+                            <span class="cover-char">草</span>
+                            <span class="cover-char small">境</span>
+                        </div>
+                        <div class="cover-sub">— 灵 境 问 药 —</div>
+                        <div class="cover-hint">✦ 轻触翻开 ✦</div>
+                    </div>
+                    <!-- 印章 -->
+                    <div class="seal">灵境</div>
+                    <!-- 封面内侧 -->
+                    <div class="book-cover-inner"></div>
+                </div>
+
+                <!-- ═══ 翻开后内容 ═══ -->
+                <div class="book-content">
+                    <div class="book-gutter"></div>
+
+                    <!-- 左页 -->
+                    <div class="page-left">
+                        <div class="left-ornament">— ✦ —</div>
+                        <div class="left-quote">
+                            <span class="highlight">神农</span>尝百草，<br>
+                            一日而遇七十毒，<br>
+                            <span class="highlight">得茶</span>而解之。
+                        </div>
+                        <div class="left-source">— 《神农本草经》</div>
+                        <div class="left-seal">本</div>
+                        <div style="margin-top:auto;margin-bottom:10px;font-size:11px;color:var(--ink-light);opacity:0.3;letter-spacing:4px;">灵 境 本 草</div>
+                    </div>
+
+                    <!-- 右页（聊天） -->
+                    <div class="page-right">
+                        <div class="chat-header">问 药</div>
+
+                        <div class="chat-messages" id="magicMessages">
+                            <div class="chat-welcome">
+                                <div class="icon">🏛️</div>
+                                <div class="text">灵境之中，百草有灵</div>
+                                <div class="hint">输入药名或症状，开始问询</div>
+                            </div>
+                        </div>
+
+                        <div class="chat-input-row">
+                            <input id="magicInput" type="text" placeholder="输入你的问题…" onkeydown="onKey(event)">
+                            <button id="magicSend" onclick="sendMsg()">问</button>
+                        </div>
+                    </div>
+
+                </div><!-- /book-content -->
+            </div><!-- /book -->
+        </div><!-- /book-body -->
+    </div><!-- /book-outer -->
+</div>
+
+<!-- ═══ JS ═══ -->
+<script>
+(function () {
+    'use strict';
+
+    var isOpen = false;
+    var isSending = false;
+    var messages = [];
+    var sessionId = 'magic_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+
+    // ── 生成星空 ────────────────────────────
+    function createStars() {
+        var container = document.getElementById('stars');
+        for (var i = 0; i < 120; i++) {
+            var s = document.createElement('div');
+            s.className = 'star' + (i < 20 ? ' main' : '');
+            s.style.left = Math.random() * 100 + '%';
+            s.style.top = Math.random() * 100 + '%';
+            var size = 1 + Math.random() * 2.5;
+            s.style.width = size + 'px';
+            s.style.height = size + 'px';
+            s.style.setProperty('--d', (2 + Math.random() * 4) + 's');
+            s.style.animationDelay = (Math.random() * 5) + 's';
+            if (i < 20) s.style.setProperty('--glow', (3 + Math.random() * 6) + 'px');
+            container.appendChild(s);
+        }
+    }
+
+    // ── 翻书 ────────────────────────────────
+    window.openBook = function () {
+        if (isOpen) return;
+        isOpen = true;
+        document.getElementById('book').classList.add('open');
+        setTimeout(function () {
+            document.getElementById('magicInput').focus();
+        }, 800);
+    };
+
+    // ── 发送消息 ────────────────────────────
+    window.sendMsg = function () {
+        var input = document.getElementById('magicInput');
+        var msg = input.value.trim();
+        if (!msg || isSending) return;
+
+        input.value = '';
+        isSending = true;
+        updateBtn();
+        messages.push({ role: 'user', content: msg });
+        messages.push({ role: 'assistant', content: '', loading: true });
+        render();
+
+        var box = document.getElementById('magicMessages');
+        box.scrollTop = box.scrollHeight;
+
+        fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, session_id: sessionId }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+            var last = messages[messages.length - 1];
+            last.loading = false;
+            last.content = res.answer || '（未收到回复）';
+            last.disclaimer = res.disclaimer || '';
+            isSending = false;
+            updateBtn();
+            render();
+            box.scrollTop = box.scrollHeight;
+        })
+        .catch(function (e) {
+            var last = messages[messages.length - 1];
+            last.loading = false;
+            last.content = '请求失败：' + e.message;
+            isSending = false;
+            updateBtn();
+            render();
+        });
+    };
+
+    window.onKey = function (e) {
+        if (e.key === 'Enter') sendMsg();
+    };
+
+    function updateBtn() {
+        var btn = document.getElementById('magicSend');
+        btn.disabled = isSending;
+        btn.textContent = isSending ? '…' : '问';
+    }
+
+    function render() {
+        var box = document.getElementById('magicMessages');
+        if (messages.length === 0) {
+            box.innerHTML =
+                '<div class="chat-welcome"><div class="icon">🏛️</div>' +
+                '<div class="text">灵境之中，百草有灵</div>' +
+                '<div class="hint">输入药名或症状，开始问询</div></div>';
+            return;
+        }
+        box.innerHTML = messages.map(function (m) {
+            var body, disc = '';
+            if (m.loading) {
+                body = '<span class="typing"><span></span><span></span><span></span></span>';
+            } else {
+                body = escHtml(m.content);
+                if (m.disclaimer) disc = '<span class="disc">' + escHtml(m.disclaimer) + '</span>';
+            }
+            return '<div class="chat-bubble ' + m.role + '">' + body + disc + '</div>';
+        }).join('');
+    }
+
+    function escHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = s;
+        return d.innerHTML;
+    }
+
+    // ── 初始化 ──────────────────────────────
+    createStars();
+})();
+</script>
+
+</body>
+</html>

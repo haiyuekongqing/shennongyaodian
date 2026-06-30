@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>神农本草 — 中草药智能问答</title>
+    <script defer src="js/api.js"></script>
+    <script defer src="js/app.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- ======== 通知铃铛 ======== -->
+    <div id="notif-bell" class="notification-bell hidden" onclick="App.toggleNotifications()" title="导入通知">
+        🔔
+        <span id="notif-badge" style="
+            position:absolute; top:-2px; right:-2px; width:18px; height:18px;
+            background:#c0392b; color:white; border-radius:50%; font-size:10px;
+            display:none; align-items:center; justify-content:center;
+            box-shadow:0 0 0 2px #2c1810;"></span>
+    </div>
+
+    <!-- ======== 通知下拉 ======== -->
+    <div id="notification-dropdown" class="notification-dropdown hidden">
+        <div class="notification-header">
+            <span>导入通知</span>
+            <span class="notification-clear" onclick="App.markAllRead()">全部已读</span>
+        </div>
+        <div id="notif-list" class="notification-list">
+            <div class="notification-empty">暂无导入记录</div>
+        </div>
+    </div>
+    <div id="notif-overlay" class="hidden" onclick="App.closeNotifications()"
+         style="position:fixed;inset:0;z-index:97;background:transparent;"></div>
+
+    <!-- ======== Toast ======== -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- ======== 登录遮罩 ======== -->
+    <div id="login-overlay" class="hidden" style="
+        position:fixed; inset:0; z-index:200;
+        background:rgba(26,14,8,0.85);
+        display:flex; align-items:center; justify-content:center;
+        backdrop-filter:blur(4px);">
+        <div style="
+            background:var(--parchment); border-radius:16px; padding:40px 36px;
+            width:360px; max-width:90vw; box-shadow:0 20px 60px rgba(0,0,0,0.5);
+            border:1px solid #d4c9b8;">
+            <div style="font-family:var(--font-serif);font-size:24px;font-weight:700;text-align:center;margin-bottom:6px;color:var(--ink);">神农本草</div>
+            <div style="font-family:var(--font-serif);font-size:13px;text-align:center;margin-bottom:24px;color:var(--ink-faded);">管理员登录</div>
+            <div style="display:flex;flex-direction:column;gap:14px;">
+                <input id="login-username" type="text" placeholder="用户名"
+                       style="padding:10px 14px;border:1px solid #d4c9b8;border-radius:8px;font-size:14px;background:white;color:var(--ink);outline:none;"
+                       onkeydown="if(event.key==='Enter') App.login()">
+                <input id="login-password" type="password" placeholder="密码"
+                       style="padding:10px 14px;border:1px solid #d4c9b8;border-radius:8px;font-size:14px;background:white;color:var(--ink);outline:none;"
+                       onkeydown="if(event.key==='Enter') App.login()">
+                <div id="login-error" class="hidden" style="color:var(--cinnabar);font-size:13px;text-align:center;"></div>
+                <button onclick="App.login()" style="
+                    padding:10px;background:linear-gradient(135deg,var(--cinnabar),var(--cinnabar-dark));color:white;
+                    border:none;border-radius:8px;font-size:15px;font-family:var(--font-serif);cursor:pointer;
+                    transition:all 0.2s;"
+                    onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                    登 录
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ======== 书籍主体 ======== -->
+    <div class="book-wrapper">
+        <div class="book">
+            <div class="book-spine-line"></div>
+
+            <!-- ======== 左页：导航 ======== -->
+            <div class="page page-left">
+                <div class="nav-title">神农本草</div>
+                <div class="nav-subtitle">— 智能药典 —</div>
+                <div class="nav-divider"></div>
+
+                <ul class="nav-menu">
+                    <li class="nav-item active" data-page="ask" onclick="App.navigate('ask')">
+                        <span class="nav-icon">📖</span><span>问药</span>
+                    </li>
+                    <!-- 管理员专属导航项 -->
+                    <li id="nav-collect" class="nav-item hidden" data-page="collect"
+                        onclick="App.navigate('collect-knowledge')">
+                        <span class="nav-icon">📚</span><span>收录</span>
+                    </li>
+                    <li id="nav-status" class="nav-item hidden" data-page="status"
+                        onclick="App.navigate('status')">
+                        <span class="nav-icon">📊</span><span>系统状态</span>
+                    </li>
+                </ul>
+
+                <div class="nav-footer">
+                    <div id="auth-status" style="margin-bottom:4px;">
+                        <span id="guest-label">游客模式</span>
+                        <span id="admin-label" class="hidden">管理员</span>
+                    </div>
+                    <div>
+                        <a href="#" id="auth-action" onclick="App.toggleAuth()"
+                           style="color:var(--cinnabar);text-decoration:none;font-size:12px;">
+                            管理员登录
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======== 右页：内容区 ======== -->
+            <div class="page page-right">
+
+                <!-- ─── 问药 ─── -->
+                <div id="page-ask" class="page-content fade-enter">
+                    <div class="content-title">
+                        <span class="content-title-icon">📖</span>
+                        问药 · 智能问答
+                    </div>
+
+                    <div id="chat-messages" class="chat-messages">
+                        <div class="chat-empty">
+                            <div class="chat-empty-icon">🏛️</div>
+                            <div class="chat-empty-text">神农尝百草，我来解君疑</div>
+                            <div class="chat-empty-hint">输入药材名、症状或方剂，开始咨询</div>
+                        </div>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <input id="chat-input" type="text" class="chat-input"
+                               placeholder="输入你的问题…"
+                               onkeydown="App.handleChatKeydown(event)">
+                        <button class="btn-send" onclick="App.sendMessage()">问药</button>
+                        <button id="timing-btn" class="btn-timing"
+                                onclick="App.toggleTiming()" title="查看请求各阶段耗时"
+                                style="display:none;">⏱ 0.0s</button>
+                    </div>
+                </div>
+
+                <!-- ─── 收录 ─── -->
+                <div id="page-collect-knowledge" class="page-content fade-enter hidden">
+                    <div class="content-title">
+                        <span class="content-title-icon">📚</span>
+                        收录 · 知识导入
+                    </div>
+
+                    <div class="sub-tabs">
+                        <div class="sub-tab active" data-page="collect-knowledge"
+                             onclick="App.navigate('collect-knowledge')">古籍收录</div>
+                        <div class="sub-tab" data-page="collect-graph"
+                             onclick="App.navigate('collect-graph')">图谱收录</div>
+                    </div>
+
+                    <!-- 古籍收录 -->
+                    <div>
+                        <div class="upload-area" onclick="document.getElementById('knowledge-file-input').click()"
+                             ondrop="event.preventDefault(); const dt=event.dataTransfer; document.getElementById('knowledge-file-input').files=dt.files; App.handleKnowledgeFiles(event)"
+                             ondragover="event.preventDefault(); this.classList.add('dragover')"
+                             ondragleave="this.classList.remove('dragover')">
+                            <div class="upload-area-icon">📄</div>
+                            <div class="upload-area-text">点击或拖拽文件到此处</div>
+                            <div class="upload-area-hint">支持 .md .txt .pdf 格式，可多选</div>
+                        </div>
+                        <input id="knowledge-file-input" type="file" multiple accept=".md,.txt,.pdf"
+                               onchange="App.handleKnowledgeFiles(event)" style="display:none">
+
+                        <div id="knowledge-file-list" class="upload-file-list hidden"></div>
+
+                        <div class="upload-options">
+                            <div class="upload-option-group">
+                                <label class="upload-option-label">分块大小</label>
+                                <input id="knowledge-chunk-size" type="number" class="upload-option-input"
+                                       value="500" min="100" max="2000">
+                            </div>
+                            <div class="upload-option-group">
+                                <label class="upload-option-label">分块重叠</label>
+                                <input id="knowledge-overlap" type="number" class="upload-option-input"
+                                       value="50" min="0" max="500">
+                            </div>
+                        </div>
+
+                        <button id="btn-upload-knowledge" class="btn-upload"
+                                onclick="App.uploadKnowledge()" disabled>开始收录</button>
+                    </div>
+                </div>
+
+                <div id="page-collect-graph" class="page-content fade-enter hidden">
+                    <div class="content-title">
+                        <span class="content-title-icon">📚</span>
+                        收录 · 知识导入
+                    </div>
+
+                    <div class="sub-tabs">
+                        <div class="sub-tab" data-page="collect-knowledge"
+                             onclick="App.navigate('collect-knowledge')">古籍收录</div>
+                        <div class="sub-tab active" data-page="collect-graph"
+                             onclick="App.navigate('collect-graph')">图谱收录</div>
+                    </div>
+
+                    <div>
+                        <div class="upload-area" onclick="document.getElementById('graph-file-input').click()"
+                             ondrop="event.preventDefault(); const dt=event.dataTransfer; document.getElementById('graph-file-input').files=dt.files; App.handleGraphFile(event)"
+                             ondragover="event.preventDefault(); this.classList.add('dragover')"
+                             ondragleave="this.classList.remove('dragover')">
+                            <div class="upload-area-icon">🕸️</div>
+                            <div class="upload-area-text">点击或拖拽图谱文件</div>
+                            <div class="upload-area-hint">支持 .json / .jsonl 格式</div>
+                        </div>
+                        <input id="graph-file-input" type="file" accept=".json,.jsonl"
+                               onchange="App.handleGraphFile(event)" style="display:none">
+
+                        <div id="graph-file-list" class="upload-file-list hidden"></div>
+
+                        <div class="upload-options">
+                            <div class="upload-option-group">
+                                <label class="upload-option-label">导入模式</label>
+                                <select id="graph-mode" class="upload-option-select">
+                                    <option value="full_import">全量导入（清空后导入）</option>
+                                    <option value="append">追加导入</option>
+                                </select>
+                            </div>
+                            <div class="upload-option-group">
+                                <label class="upload-option-label">实体类型（可选）</label>
+                                <input id="graph-entity-types" type="text" class="upload-option-input"
+                                       placeholder="如：Drug,Disease,Symptom">
+                            </div>
+                        </div>
+
+                        <button id="btn-upload-graph" class="btn-upload"
+                                onclick="App.uploadGraph()" disabled>开始收录</button>
+                    </div>
+                </div>
+
+                <!-- ─── 系统状态 ─── -->
+                <div id="page-status" class="page-content fade-enter hidden">
+                    <div class="content-title">
+                        <span class="content-title-icon">📊</span>
+                        系统状态
+                    </div>
+                    <div id="status-content">
+                        <div class="chat-empty">
+                            <div class="chat-empty-icon">🔒</div>
+                            <div class="chat-empty-text">登录后可查看系统状态</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /page-right -->
+        </div><!-- /book -->
+    </div><!-- /book-wrapper -->
+
+    <!-- ======== 时序面板 ======== -->
+    <div id="timing-overlay" class="hidden" onclick="App.toggleTiming()"
+         style="position:fixed;inset:0;z-index:150;background:rgba(0,0,0,0.3);backdrop-filter:blur(2px);"></div>
+    <div id="timing-panel" class="hidden" style="
+        position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+        z-index:151; width:360px; max-width:90vw;
+        background:var(--parchment); border-radius:12px; padding:24px 22px;
+        box-shadow:0 10px 40px rgba(0,0,0,0.3); border:1px solid #d4c9b8;">
+    </div>
+
+</body>
+</html>

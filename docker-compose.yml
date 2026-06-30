@@ -1,0 +1,206 @@
+# ==================== 网络定义 ====================
+networks:
+  tcm-network:
+    driver: bridge
+    name: tcm-network
+
+# ==================== 数据卷定义 ====================
+volumes:
+  milvus_etcd_data:
+    name: tcm-milvus-etcd-data
+  milvus_minio_data:
+    name: tcm-milvus-minio-data
+  milvus_data:
+    name: tcm-milvus-data
+  tcm_api_data:
+    name: tcm-api-data
+  neo4j_data:
+    name: tcm-neo4j-data
+
+# ==================== 服务定义 ====================
+services:
+  # -------------------- etcd (Milvus 依赖) --------------------
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    container_name: tcm-etcd
+    restart: unless-stopped
+    networks:
+      - tcm-network
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+      TZ: Asia/Shanghai
+    volumes:
+      - milvus_etcd_data:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # -------------------- MinIO (Milvus 依赖) --------------------
+  minio:
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
+    container_name: tcm-minio
+    restart: unless-stopped
+    networks:
+      - tcm-network
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      TZ: Asia/Shanghai
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - milvus_minio_data:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # -------------------- Milvus 向量数据库 --------------------
+  milvus:
+    image: milvusdb/milvus:v2.6.13
+    container_name: tcm-milvus
+    restart: unless-stopped
+    networks:
+      - tcm-network
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: minioadmin
+      MINIO_SECRET_ACCESS_KEY: minioadmin
+      TZ: Asia/Shanghai
+      # 强制 IPv4 监听
+      COMMON_IP_ADDRESS: 0.0.0.0
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - milvus_data:/var/lib/milvus
+    command: milvus run standalone
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # -------------------- Attu (Milvus 可视化) --------------------
+  attu:
+    image: zilliz/attu:v2.3.5
+    container_name: tcm-attu
+    restart: unless-stopped
+    networks:
+      - tcm-network
+    environment:
+      MILVUS_ADDRESS: milvus:19530
+      MILVUS_TOKEN: ""
+    ports:
+      - "3000:3000"
+    depends_on:
+      milvus:
+        condition: service_healthy
+    # 健康检查：由于容器内没有可用工具，跳过健康检查
+    healthcheck:
+      disable: true
+
+  # -------------------- Neo4j (知识图谱数据库) --------------------
+  neo4j:
+    image: neo4j:5.22.0
+    container_name: tcm-neo4j
+    restart: unless-stopped
+    networks:
+      - tcm-network
+    environment:
+      NEO4J_AUTH: neo4j/neo4j123
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: 'apoc.*'
+      NEO4J_dbms_security_procedures_allowlist: 'apoc.*'
+      NEO4J_dbms_memory_pagecache_size: 1G
+      NEO4J_dbms_memory_heap_max__size: 1G
+      TZ: Asia/Shanghai
+    ports:
+      - "7474:7474"  # HTTP UI
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j_data:/data
+      - ./data/neo4j_logs:/logs
+    command: neo4j
+
+  # -------------------- TCM API 服务 --------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tcm-api
+    restart: unless-stopped
+    networks:
+      - tcm-network
+    depends_on:
+      milvus:
+        condition: service_healthy
+      neo4j:
+        condition: service_started
+    environment:
+      # 数据库配置
+      DATABASE_URL: sqlite:///./data/tcm.db
+      # Milvus 配置
+      MILVUS_HOST: milvus
+      MILVUS_PORT: 19530
+      # Neo4j 配置
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: neo4j123
+      # LLM 配置
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-GLM-4.7-Flash}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://open.bigmodel.cn/api/paas/v4}
+      # Embedding 模型配置
+      EMBEDDING_MODEL: /app/data/embeddings/bge-m3
+      EMBEDDING_DEVICE: cpu
+      # 知识库配置
+      KNOWLEDGE_BASE_DIR: /app/data/knowledge_base
+      # 应用配置
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8000
+      TZ: Asia/Shanghai
+      # 管理员认证（由 setup_admin.py 生成）
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD_SALT: ${ADMIN_PASSWORD_SALT:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
+    ports:
+      - "8000:8000"
+    volumes:
+      # 挂载知识库目录（供数据导入使用）
+      - ./data/knowledge_base:/app/data/knowledge_base:ro
+      # 挂载模型目录（如果有本地模型）
+      - ./data/embeddings:/app/data/embeddings:ro
+      # 挂载应用数据（数据库、日志等）
+      - tcm_api_data:/app/data
+      # 挂载初始化脚本
+      - ./scripts/init.sh:/app/init.sh:ro
+      # 日志输出到主机
+      - ./logs:/app/logs
+      # 挂载源码（开发模式，热更新）
+      - ./src:/app/src:ro
+      # 挂载前端静态文件（药典 Web UI）
+      - ./static:/app/static:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 2G
