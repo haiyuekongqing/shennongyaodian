@@ -41,13 +41,9 @@ docker-compose logs -f api
 
 - **API 文档**: http://localhost:8000/docs
 - **API 健康检查**: http://localhost:8000/health
-- **灵境问药 (玄幻问答)**: http://localhost:8000/magic
+- **另一个风格UI **: http://localhost:8000/magic
 - **Milvus 管理界面 (Attu)**: http://localhost:3000
-  - 用户名: `root`
-  - 密码: `Milvus@123`
 - **Neo4j Browser**: http://localhost:7474
-  - 用户名: `neo4j`
-  - 密码: `neo4j123`
 
 ## 技术栈
 
